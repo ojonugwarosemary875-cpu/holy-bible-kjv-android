@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "308628864182",
+    "project_id": "holy-bible-kjv-1fcba",
+    "storage_bucket": "holy-bible-kjv-1fcba.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:308628864182:android:4376b11eed054a42ebfa17",
+        "android_client_info": {
+          "package_name": "com.holybible.kjv"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBA_F7l-FI_AuZItjdprDvADAFJERRlro4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
