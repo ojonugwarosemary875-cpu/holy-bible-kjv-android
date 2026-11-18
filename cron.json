@@ -1,0 +1,8 @@
+[
+  {
+    "name": "daily-prayer-reminder-check",
+    "cron": "*/5 * * * *",
+    "handler": "checkPrayerReminders",
+    "timezone": "UTC"
+  }
+]

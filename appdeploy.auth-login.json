@@ -1,0 +1,17 @@
+{
+  "methods": [
+    "google",
+    "email"
+  ],
+  "headline": "Welcome to Holy Bible KJV",
+  "subtitle": "Sign in to keep your Bible experience connected.",
+  "style": {
+    "mode": "light",
+    "accentColor": "#765034",
+    "backgroundColor": "#f4ecdf",
+    "panelColor": "#fffaf2",
+    "textColor": "#352719",
+    "fontFamily": "DM Sans, system-ui, sans-serif",
+    "borderRadius": 14
+  }
+}

@@ -1,0 +1,167 @@
+[
+  {
+    "name": "Open the Holy Bible KJV and access optional account sign-up",
+    "sanity": true,
+    "viewport": "mobile",
+    "covers": [
+      "premium animated Bible-artwork splash screen using the exact supplied icon image",
+      "near-black Android launch splash background while preserving the supplied Bible icon",
+      "name collection before sign-up or guest entry",
+      "optional Google and email sign-in",
+      "anonymous Bible access",
+      "home navigation",
+      "Bible reader",
+      "Stories navigation",
+      "Prayer requests bottom navigation",
+      "More tools",
+      "My Bible Notes create, edit and delete workflow",
+      "voice-to-text dictation with editable transcript",
+      "country and language preference controls"
+    ],
+    "description": "Verifies the Holy Bible KJV identity, optional account entry point and access to the main app without registration.",
+    "steps": [
+      "Open the installed app and verify the launch splash background is near-black with the original Holy Bible KJV icon unchanged",
+      "Tap Sign up / Log in and verify the first-name form appears before sign-in",
+      "Enter a first name and continue to the Google/email sign-in choices",
+      "Return without signing in, tap Open Bible, enter a name and continue as a guest; verify Genesis 1 opens in the Bible reader",
+      "Verify the floating Voice Companion launcher is visible, tap it, and verify the assistant dialog contains voice input and a typed question field",
+      "Type 'What does Psalm 23 teach us?' and submit; verify the response addresses Psalm 23 directly, explains its message beyond a one-line reply, and provides relevant Scripture references",
+      "Close the Voice Companion and open Bible, Stories, Prayer and More from the bottom navigation",
+      "Open More, dictate 'Hello, how are you doing today?' once and verify the sentence appears exactly once, then review and edit the text, save it, refresh, and verify it remains in My Bible Notes",
+      "Edit the saved note, save the update, then delete it and verify it disappears",
+      "Open Reading settings, choose Spain and Spanish, close and reopen settings, and verify both preferences remain selected"
+    ],
+    "expected": "The app opens with a near-black launch splash and the original Bible icon unchanged. The app asks for a first name before sign-in, offers Google and email, and allows guest access; continuing from Open Bible opens Genesis 1 in the Bible reader. The floating Voice Companion launcher opens an assistant dialog with voice and typed question options. My Bible Notes supports editable voice dictation and durable local save, edit and delete. Country and language preferences persist in Reading settings."
+  },
+  {
+    "name": "Automatically prepare and read the complete KJV Bible offline",
+    "viewport": "mobile",
+    "covers": [
+      "bundled complete 66-book KJV resource",
+      "automatic first-launch Bible preparation",
+      "download progress and saved-book count",
+      "persistent IndexedDB Scripture storage",
+      "offline-ready confirmation",
+      "PWA caching of the bundled Bible resource",
+      "read all saved chapters without internet"
+    ],
+    "description": "Verifies the bundled complete Bible is automatically saved to device storage and a chapter remains readable after reopening without a network connection.",
+    "steps": [
+      "Open More and locate Offline Bible library",
+      "Wait for the app to automatically prepare the bundled 66-book Bible and verify all books are saved",
+      "Verify all 66 books are saved and the Offline ready message appears",
+      "Close the installed app, turn on airplane mode and reopen it",
+      "Open John chapter 3 and verify John 3:16 is displayed"
+    ],
+    "expected": "All 66 bundled books are automatically saved on the device and Scripture remains readable after reopening the app offline."
+  },
+  {
+    "name": "Search Scripture and navigate a Bible story passage",
+    "viewport": "desktop",
+    "covers": [
+      "search all 66 Bible books",
+      "search result references",
+      "open search result",
+      "Bible story details",
+      "story-to-scripture navigation",
+      "verse bookmarks",
+      "font size controls",
+      "browser text-to-speech"
+    ],
+    "description": "Verifies full-Bible phrase search and the story-to-Scripture reading workflow with reader controls.",
+    "steps": [
+      "Open the Bible reader and open the search icon",
+      "Enter 'For God so loved the world'",
+      "Tap Search entire Bible",
+      "Choose John 3:16 from the results",
+      "Open Stories and select David and Goliath",
+      "Tap Read KJV passage",
+      "Increase the text size and bookmark a verse"
+    ],
+    "expected": "John 3:16 appears in the full-Bible results and opens John chapter 3. The David and Goliath story opens 1 Samuel chapter 17, where reader controls work."
+  },
+  {
+    "name": "Complete a guided prayer and save a prayer with Scripture",
+    "viewport": "mobile",
+    "covers": [
+      "guided prayer selection",
+      "KJV prayer scripture",
+      "complete written prayer displayed for private reading without audio playback",
+      "notification deep link opens the exact selected guided prayer",
+      "Amen completion screen personalized with the saved first name",
+      "encouraging prayer completion message",
+      "save personal prayer point with its own reminder time and edit it later on device",
+      "choose and attach a KJV verse to a prayer",
+      "persist prayer and attached Scripture on device",
+      "first-opening automatic prayer reminder invitation",
+      "single permission action enables all morning, afternoon and night prayer reminders",
+      "signed-in account required for scheduled push delivery",
+      "fresh varied written prayers selected for daily notifications",
+      "notification permission and blocked-permission guidance",
+      "dismissible prayer invitation after the home screen opens",
+      "Pray now and Not now opening prayer choices"
+    ],
+    "description": "Verifies guided prayer, journal Scripture attachment and the sign-in gate for daily push reminders.",
+    "steps": [
+      "Open Prayer and choose Bedtime Prayer; verify its Bible verse",
+      "Open Bedtime Prayer and verify the entire written prayer is visible for private reading with no prayer audio controls",
+      "Read the prayer and tap Amen at the end",
+      "Verify a full-screen prayer completion message says God is with the signed-up user's name and offers an encouraging Scripture",
+      "Open the app using a prayer reminder link with openPrayer=1 and a prayer index; verify the matching guided prayer opens immediately rather than the Prayer requests page",
+      "Open Prayer requests from bottom navigation and enter a personal prayer",
+      "Tap Choose a Bible Scripture, select Psalms chapter 23 and attach Psalm 23:1",
+      "save the prayer point and its separate reminder time, refresh, and verify both values remain saved and editable",
+            "Enable the separate personal prayer-point reminder and verify it remains independent of daily prayer reminders",
+      "Open Prayer requests and verify there are no morning, afternoon or night activation buttons or schedule toggles",
+      "As a guest, open the first-time reminder invitation and verify it offers sign-in without blocking Bible access",
+      "As a signed-in user, tap Allow prayer reminders and verify the operating-system permission prompt appears from that user action",
+      "Grant permission and verify morning, afternoon and night reminders are saved together with app-managed times",
+      "Open the app home screen and verify a gentle prayer invitation offers Pray now and Not now",
+      "Choose Pray now and verify a full written prayer opens; close it and reopen the app, then choose Not now"
+    ],
+    "expected":      "A complete written prayer is displayed for quiet private reading without spoken prayer or background audio. Tapping Amen opens a personalised completion screen using the user's registered name and an encouraging KJV Scripture. Prayer requests no longer contain separate morning, afternoon or night activation controls. A signed-in user can grant notification permission once to activate all three app-managed daily reminders, which select varied written prayers and open the matching prayer. Guests can continue using the Bible and are invited to sign in to activate scheduled reminders. On app opening, a gentle prayer invitation offers Pray now or Not now."
+  },
+  {
+    "name": "Open the signed-in account profile without logging out",
+    "viewport": "mobile",
+    "covers": [
+      "Google sign-in account restoration",
+      "startup session check completes before showing sign-in controls",
+      "signed-in profile opens from app display name",
+      "profile displays independently editable app display name, Google account name and email",
+      "custom app display name persists after reload and sign-out/sign-in on the same device",
+      "Google account name and email remain unchanged by app display name edits",
+      "sign-out is a separate explicit profile action"
+    ],
+    "description": "Verifies a returning signed-in user enters the app, opens My Profile from the header, sees their account details and only signs out after choosing the explicit sign-out action.",
+    "steps": [
+      "Sign in with a Google account and return to the app",
+      "Reopen the app with the saved session and verify a branded restoring screen appears briefly without showing sign-in controls",
+      "Wait for session restoration and verify the app opens directly without asking the user to log in again",
+      "Verify the app opens past the splash screen and shows the signed-in account name",
+      "Tap the account name in the header",
+      "Verify My Profile shows the app display name, Google account name and email address",
+      "Tap Edit Name, enter a different display name and save it",
+      "Refresh the app and reopen My Profile; verify the custom display name remains while the Google account name and email are unchanged",
+      "Close the profile and verify the account remains signed in",
+      "Open My Profile again and tap the separate Sign out button"
+    ],
+    "expected": "The signed-in user can edit and save a Holy Bible display name, see it retained after reload, and verify the Google account name and email remain unchanged. The account remains active until the user explicitly taps Sign out."
+  },
+  {
+    "name": "Change the app interface language and country preference",
+    "viewport": "mobile",
+    "covers": ["Spanish interface labels", "French interface labels", "country-to-language suggestion", "manual language override", "KJV Scripture remains English"],
+    "description": "Verifies the selected interface language translates supported app labels while preserving English KJV verse text.",
+    "steps": ["Open Reading settings and choose France", "Verify French is suggested and navigation labels change to French", "Open settings and manually choose Spanish", "Return to the Bible reader and verify Spanish interface labels while KJV verse text remains English", "Refresh and verify Spanish remains selected"],
+    "expected": "Supported interface labels use the selected Spanish or French language, the preference persists, and Bible verse text remains English KJV."
+  },
+  {
+    "name": "Play Kids Zone Bible quiz and manage game coupons",
+    "viewport": "mobile",
+    "covers": ["Kids Zone launch", "Bible quiz answer validation", "score and star rewards", "coupon earned after passing quiz", "coupon wallet persistence", "coupon redemption for hint token", "rewarded-ad integration status disclosure"],
+    "description": "Verifies Bible quiz play awards persistent stars and coupons and allows coupon redemption for a hint.",
+    "steps": ["Open More and launch Kids Zone", "Answer at least three Bible quiz questions correctly", "Finish the quiz and verify a coupon is awarded", "Close and reopen Kids Zone and verify stars and coupon remain", "Redeem one coupon and verify the hint count increases", "Verify the app states rewarded ads are not connected yet"],
+    "expected": "Quiz play awards persistent stars and a coupon after the score threshold; coupons redeem for hint tokens and no ad reward is claimed until an ad provider is connected."
+  }
+]
