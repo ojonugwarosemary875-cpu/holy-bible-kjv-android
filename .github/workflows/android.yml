@@ -1,3 +1,4 @@
+
 name: Build Holy Bible KJV Android APK
 
 on:
@@ -34,14 +35,14 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Build web app and sync Android
-        run: npm run build:android
-
       - name: Generate Android SHA fingerprints
         run: |
           cd android
           chmod +x gradlew
           ./gradlew signingReport
+
+      - name: Build web app and sync Android
+        run: npm run build:android
 
       - name: Build APK
         run: |
@@ -54,3 +55,4 @@ jobs:
         with:
           name: Holy-Bible-KJV-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
