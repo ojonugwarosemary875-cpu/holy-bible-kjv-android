@@ -32,8 +32,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Add Android platform
-        run: npx cap add android
+            - name: Generate Android SHA fingerprints
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew signingReport
+       
 
       - name: Build web app and sync Android
         run: npm run build:android
