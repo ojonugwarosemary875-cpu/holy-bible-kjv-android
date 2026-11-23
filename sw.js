@@ -37,8 +37,8 @@ self.addEventListener('push', event => {
     const title = message.title || 'A gentle moment with God';
     const options = {
       body: message.body || 'It is your prayer time. Take a quiet moment with God.',
-      icon: message.icon || '/resources/holy-bible-kjv-icon.png',
-      badge: '/resources/holy-bible-kjv-icon.png',
+      icon: message.icon || '/holy-bible-kjv-icon.png',
+      badge: '/holy-bible-kjv-icon.png',
       tag: payload.data?.kind || 'holy-bible-prayer-reminder',
       renotify: true,
       requireInteraction: true,

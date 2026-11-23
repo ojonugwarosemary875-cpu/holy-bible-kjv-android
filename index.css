@@ -1174,3 +1174,20 @@ body {
 .kids-primary-button,.kids-secondary-button{width:100%;min-height:45px;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:12px;background:#62452f;color:#fff5df;font:700 12px 'DM Sans',sans-serif}.kids-secondary-button{border:1px solid #d9c49b;background:#f5ead5;color:#6d4d2e}.kids-secondary-button:disabled{opacity:.45}
 .kids-complete{text-align:center;padding:12px 0 17px}.kids-trophy{display:grid;place-items:center;width:68px;height:68px;margin:0 auto 12px;border-radius:50%;background:#f4e4bb;color:#a77b31}.kids-complete h3{margin:7px 0;color:#553a28;font:600 24px 'Playfair Display',serif}.kids-complete p{color:#78634b;font-size:12px;line-height:1.5}
 .kids-wallet{margin-top:17px;padding:15px;border:1px solid #e3d2b2;border-radius:16px;background:#f8efdf}.kids-wallet h3{margin:4px 0;color:#523b29;font:600 18px 'Playfair Display',serif}.kids-wallet p{color:#7a674f;font-size:10px;line-height:1.5}.kids-coupon-list{display:grid;gap:7px;margin:10px 0}.kids-coupon-list>p{margin:0;padding:9px;border-radius:10px;background:#fffaf0}.kids-coupon{display:flex;align-items:center;gap:8px;padding:10px;border:1px dashed #c7a56b;border-radius:10px;background:#fffaf0;color:#73542d;font-size:10px}.kids-coupon span{margin-left:auto;color:#6c8054;font-weight:700}.kids-coupon.used{opacity:.55}.kids-ad-note{margin:9px 0 0!important;color:#947c5e!important;font-size:9px!important}@media(max-width:480px){.voice-modal{padding:25px 16px 18px}.voice-launcher{right:12px;bottom:76px;padding:10px 12px;font-size:10px}}
+
+/* First-launch Christ-centered welcome */
+.first-welcome { position: fixed; inset: 0; min-height: 100dvh; overflow: hidden; display: flex; align-items: flex-end; color: #fff8e8; background: #1d140c; }
+.first-welcome-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.first-welcome-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(22,13,7,.12) 0%, rgba(22,13,7,.05) 32%, rgba(22,13,7,.83) 70%, rgba(22,13,7,.96) 100%); }
+.first-welcome-skip { position: absolute; z-index: 2; top: max(18px, env(safe-area-inset-top)); right: 22px; border: 0; background: transparent; color: #fff9e6; opacity: .65; font-size: 13px; padding: 10px; }
+.first-welcome-content { position: relative; z-index: 1; width: min(100%, 580px); padding: 32px 26px max(34px, env(safe-area-inset-bottom)); margin: 0 auto; text-align: center; }
+.first-welcome-content h1 { margin: 12px 0; font: 700 clamp(34px, 8vw, 48px)/1.1 Georgia,serif; color: #f4d59a; }
+.first-welcome-content p { max-width: 440px; margin: 0 auto 24px; line-height: 1.65; color: #f5ead7; }
+.first-welcome-continue { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 15px 20px; border: 1px solid #d9b56c; border-radius: 16px; background: linear-gradient(120deg,#c89a4e,#e4c27a); color: #26170c; font-weight: 750; }
+.splash-verse { margin: 18px auto 0; max-width: 350px; font: italic 15px/1.5 Georgia,serif; color: #f3dfb8; }
+.splash-verse span { display: block; margin-top: 5px; font-size: 12px; opacity: .8; }
+.prayer-experience { background-image: linear-gradient(180deg, rgba(35,22,13,.88), rgba(20,13,8,.94)), url('/welcome-jesus-child.jpg'); background-size: cover; background-position: center; }
+/* Gentle returning-user splash motion; respects reduced-motion preferences. */
+.splash-emblem img { animation: kjv-splash-breathe 3.8s ease-in-out infinite; }
+@keyframes kjv-splash-breathe { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-5px) scale(1.025); } }
+@media (prefers-reduced-motion: reduce) { .splash-emblem img { animation: none !important; } }

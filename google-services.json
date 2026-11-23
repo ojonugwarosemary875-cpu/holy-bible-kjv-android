@@ -12,7 +12,28 @@
           "package_name": "com.holybible.kjv"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "308628864182-b1cpo6tjh832sm1n0skg0ko7u52k29ml.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.holybible.kjv",
+            "certificate_hash": "21e9c504c0608863fc3114805f12f7ea193388ce"
+          }
+        },
+        {
+          "client_id": "308628864182-bpuup7ltcd83utjqmi4kvqfoim01s0i2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.holybible.kjv",
+            "certificate_hash": "7abc8d4997017f6eb686c3949cc68ad97b66c0c7"
+          }
+        },
+        {
+          "client_id": "308628864182-7rbiauhr1tiem84vilqbvdn8ll8jjvsp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBA_F7l-FI_AuZItjdprDvADAFJERRlro4"
@@ -20,7 +41,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "308628864182-7rbiauhr1tiem84vilqbvdn8ll8jjvsp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

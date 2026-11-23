@@ -1,0 +1,85 @@
+name: Build Holy Bible KJV Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get project files
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Verify AppDeploy is removed
+        run: |
+          if grep -RniE '@appdeploy|APPDEPLOY_' src package.json vite.config.ts; then
+            echo 'AppDeploy runtime references remain in the Android app source.'
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Configure Firebase Google sign-in and notification permission
+        run: |
+          mkdir -p "$HOME/.android"
+          cp android-signing/debug.keystore "$HOME/.android/debug.keystore"
+          cp google-services.json android/app/google-services.json
+          echo 'ext.rgcfaIncludeGoogle = true' >> android/variables.gradle
+          echo "ext.androidxCredentialsVersion = '1.3.0'" >> android/variables.gradle
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          text = manifest.read_text()
+          permission = '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
+          if permission not in text:
+              text = text.replace('<application', permission + '\n    <application', 1)
+          manifest.write_text(text)
+          root = Path('android/build.gradle')
+          gradle = root.read_text()
+          if 'com.google.gms:google-services' not in gradle:
+              gradle = gradle.replace('dependencies {', "dependencies {\n        classpath 'com.google.gms:google-services:4.4.2'", 1)
+          root.write_text(gradle)
+          app = Path('android/app/build.gradle')
+          text = app.read_text()
+          if 'com.google.gms.google-services' not in text:
+              if 'plugins {' in text:
+                  text = text.replace('plugins {', "plugins {\n    id 'com.google.gms.google-services'", 1)
+              else:
+                  text += "\napply plugin: 'com.google.gms.google-services'\n"
+          app.write_text(text)
+          PY
+
+      - name: Build web app and sync Android
+        run: npm run build:android
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Holy-Bible-KJV-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { auth, api, notifications } from '@appdeploy/client';
+import { finishGoogleRedirect, startGoogleSignIn, signOutFirebase, loadPrayerReminder, storePrayerReminder, schedulePrayerReminders, checkLocalNotificationPermission, askBibleCompanion, type PrayerReminderData } from './firebaseServices';
 import {
   Home, BookOpen, Search, X, ChevronRight, ChevronLeft, Bookmark,
   Volume2, Settings, Heart, Moon, Sun, Cross, Headphones, BookMarked,
@@ -58,7 +58,7 @@ function isValidBookData(name: string, value: unknown): value is BookData {
 async function getBundledBible(): Promise<Record<string, BookData>> {
   if (!bundledBiblePromise) {
     bundledBiblePromise = (async () => {
-      const response = await fetch('./resources/kjv-bible.json.gz');
+      const response = await fetch('./kjv-bible.json.gz');
       if (!response.ok || !response.body) throw new Error('The bundled KJV Bible resource could not be loaded.');
       if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot unpack the offline Bible file. Please update your browser.');
       const decompressed = response.body.pipeThrough(new DecompressionStream('gzip'));
@@ -205,6 +205,7 @@ const concisePrayerTexts = [
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
+  const [firstWelcome, setFirstWelcome] = useState(() => { try { return localStorage.getItem('kjv-welcome-shown') !== 'yes'; } catch { return true; } });
   const [authChecked, setAuthChecked] = useState(false);
   const [account, setAccount] = useState<{ userId: string; name?: string; email?: string } | null>(null);
   const [profileName, setProfileName] = useState(() => { try { return localStorage.getItem('kjv-profile-name') || ''; } catch { return ''; } });
@@ -237,7 +238,7 @@ function App() {
   const [prayerRequest, setPrayerRequest] = useState(() => { try { return localStorage.getItem('kjv-prayer-request') || ''; } catch { return ''; } });
   const [prayerRequestSaved, setPrayerRequestSaved] = useState(false);
   const [personalPrayerReminder, setPersonalPrayerReminder] = useState<{ enabled: boolean; time: string }>(() => { try { return JSON.parse(localStorage.getItem('kjv-personal-prayer-reminder') || 'null') || { enabled: false, time: '20:00' }; } catch { return { enabled: false, time: '20:00' }; } });
-  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderEnabled, setReminderEnabled] = useState(() => { try { return localStorage.getItem('kjv-prayer-reminders-onboarded') === 'yes'; } catch { return false; } });
   const [reminderBusy, setReminderBusy] = useState(false);
   const [reminderStatus, setReminderStatus] = useState('');
   const [reminderGuidance, setReminderGuidance] = useState<{ kind: string; title: string; message: string; steps: string[] } | null>(null);
@@ -338,32 +339,39 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    auth.getUser().then(user => {
-      if (active) {
-        setAccount(user ? { userId: user.userId, name: user.name, email: user.email } : null);
-        if (user) {
-          setShowSplash(false);
-          api.get('/api/prayer-reminder').then(({ data }) => {
-            setReminderEnabled(Boolean(data?.reminder?.enabled));
-            if (data?.reminder?.time) (window as any).setReminderTime?.(data.reminder.time);
-            (window as any).setReminderAmbient?.(Boolean(data?.reminder?.ambientEnabled));
-            if (Number.isInteger(data?.reminder?.prayerIndex)) setSelectedPrayer(Math.max(0, Math.min(prayerOptions.length - 1, data.reminder.prayerIndex)));
-          }).catch(() => setReminderStatus('Sign-in is ready, but your saved reminder could not be loaded yet.'));
-        } else {
-          setReminderEnabled(false);
-        }
-        if (user?.name) {
+    finishGoogleRedirect().then(async user => {
+      if (!active) return;
+      setAccount(user);
+      if (user) {
+        setShowSplash(false);
+        try {
+          const saved = await loadPrayerReminder(user.userId);
+          if (active && saved) {
+            if (saved.schedule) {
+              setPrayerSchedule(saved.schedule as typeof prayerSchedule);
+              const scheduleData = saved.schedule as PrayerReminderData['schedule'];
+              if (Object.values(scheduleData).some(period => period.enabled)) setReminderEnabled(true);
+              try { localStorage.setItem('kjv-prayer-schedule', JSON.stringify(scheduleData)); localStorage.setItem('kjv-prayer-reminders-onboarded', 'yes'); } catch { /* Saved cloud state stays in memory. */ }
+            }
+            if (saved.personalPrayerReminder) setPersonalPrayerReminder(saved.personalPrayerReminder as typeof personalPrayerReminder);
+            if (typeof saved.prayerRequest === 'string') setPrayerRequest(saved.prayerRequest);
+            if (saved.schedule && saved.personalPrayerReminder) {
+              checkLocalNotificationPermission().then(permission => {
+                if (permission.permission === 'granted') {
+                  const syncData = { schedule: saved.schedule as PrayerReminderData['schedule'], personalPrayerReminder: saved.personalPrayerReminder as PrayerReminderData['personalPrayerReminder'], prayerRequest: typeof saved.prayerRequest === 'string' ? saved.prayerRequest : '', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' };
+                  void schedulePrayerReminders(syncData).catch(() => undefined);
+                }
+              }).catch(() => undefined);
+            }
+          }
+        } catch { setReminderStatus('Signed in. Your prayer settings could not be synced from Firebase yet.'); }
+        if (user.name) {
           setProfileName(user.name);
-          try { localStorage.setItem('kjv-profile-name', user.name); } catch { /* Keep the name in memory for this session. */ }
+          try { localStorage.setItem('kjv-profile-name', user.name); } catch { /* Local profile name remains in state. */ }
         }
-        setAuthChecked(true);
       }
-    }).catch(() => {
-      if (active) {
-        setAuthMessage('Account status could not be checked. You can try signing in again.');
-        setAuthChecked(true);
-      }
-    });
+      if (active) setAuthChecked(true);
+    }).catch(() => { if (active) { setAuthMessage('Account status could not be checked. You can try signing in again.'); setAuthChecked(true); } });
     return () => { active = false; };
   }, []);
 
@@ -407,7 +415,7 @@ function App() {
   const startSignIn = async () => {
     setAuthMessage('');
     try {
-      await auth.signInWithRedirect();
+      await startGoogleSignIn();
     } catch (err) {
       setAuthMessage(err instanceof Error ? err.message : 'Unable to open sign-in. Please try again.');
     }
@@ -415,174 +423,69 @@ function App() {
 
   const signOut = async () => {
     try {
-      await auth.signOut();
+      await signOutFirebase();
       setAccount(null);
-      setReminderEnabled(false);
-      setAuthMessage('You have signed out.');
+      setAuthMessage('You have signed out. Your scheduled phone reminders will continue.');
     } catch {
       setAuthMessage('Unable to sign out right now. Please try again.');
     }
   };
 
-  useEffect(() => {
-    if (!account) return;
-    let active = true;
-    api.get('/api/prayer-reminder').then(({ data }) => {
-      const saved = data?.reminder?.schedule;
-      if (!active || !saved) return;
-      const dailyEnabled = ['morning', 'afternoon', 'night'].some(period => saved[period]?.enabled === true);
-      const next = {
-        morning: { enabled: dailyEnabled, time: '07:00' },
-        afternoon: { enabled: dailyEnabled, time: '13:00' },
-        night: { enabled: dailyEnabled, time: '21:00' }
-      };
-      setPrayerSchedule(next);
-      setReminderEnabled(true);
-      const savedPointReminder = data?.reminder?.personalPrayerReminder;
-      if (savedPointReminder) {
-        const pointReminder = { enabled: savedPointReminder.enabled === true, time: /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(savedPointReminder.time || '') ? savedPointReminder.time : '20:00' };
-        setPersonalPrayerReminder(pointReminder);
-        try { localStorage.setItem('kjv-personal-prayer-reminder', JSON.stringify(pointReminder)); } catch { /* Server copy remains saved. */ }
-      }
-      if (typeof data?.reminder?.prayerRequest === 'string' && data.reminder.prayerRequest) setPrayerRequest(data.reminder.prayerRequest);
-      try { localStorage.setItem('kjv-prayer-schedule', JSON.stringify(next)); } catch { /* Server copy remains saved. */ }
-    }).catch(() => undefined);
-    return () => { active = false; };
-  }, [account]);
+  const buildPrayerReminderData = (): PrayerReminderData => ({
+    schedule: prayerSchedule,
+    personalPrayerReminder,
+    prayerRequest: prayerRequest.trim(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  });
 
   const activateAutomaticPrayerReminders = async () => {
-    if (!account) {
-      await startSignIn();
-      return;
-    }
-    if (!navigator.onLine) { setReminderStatus('Connect to the internet to set up automatic prayer reminders.'); return; }
-    setReminderBusy(true);
-    setReminderStatus('');
+    setReminderBusy(true); setReminderStatus('');
     try {
-      const environment = await notifications.getEnvironment();
-      if (!environment.isSupported || environment.permission === 'denied') {
-        const guidance = await notifications.getEnableGuidance();
-        setReminderGuidance(guidance);
-        setReminderStatus(environment.permission === 'denied' ? 'Notifications are blocked on this device. Allow them in your phone settings, then try again.' : 'This browser does not support push notifications. You can still use the Bible and opening prayer.');
-        return;
-      }
-      await notifications.subscribe({ showUi: false });
-      const confirmed = await notifications.getEnvironment();
-      if (confirmed.permission !== 'granted') { setReminderStatus('Notification permission was not granted. You can try again later.'); return; }
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-      const automaticSchedule = { morning: { enabled: true, time: '07:00' }, afternoon: { enabled: true, time: '13:00' }, night: { enabled: true, time: '21:00' } };
-      await api.post('/api/prayer-reminder', { schedule: automaticSchedule, personalPrayerReminder, timezone, prayerRequest: prayerRequest.trim() });
-      setPrayerSchedule(automaticSchedule);
-      setReminderEnabled(true);
-      setShowNotificationSetup(false);
-      setReminderGuidance(null);
-      try { localStorage.setItem('kjv-prayer-schedule', JSON.stringify(automaticSchedule)); localStorage.setItem('kjv-prayer-reminders-onboarded', 'yes'); } catch { /* Server remains the saved source. */ }
-      setReminderStatus('Your morning, afternoon and night prayer reminders are now set up automatically.');
+      const defaultSchedule = { morning: { enabled: true, time: '07:00' }, afternoon: { enabled: true, time: '13:00' }, night: { enabled: true, time: '21:00' } };
+      const data = { ...buildPrayerReminderData(), schedule: defaultSchedule };
+      await schedulePrayerReminders(data);
+      let cloudSyncFailed = false;
+      if (account) { try { await storePrayerReminder(account.userId, data); } catch { cloudSyncFailed = true; } }
+      setPrayerSchedule(defaultSchedule); setReminderEnabled(true); setShowNotificationSetup(false); setReminderGuidance(null);
+      try { localStorage.setItem('kjv-prayer-schedule', JSON.stringify(defaultSchedule)); localStorage.setItem('kjv-prayer-reminders-onboarded', 'yes'); } catch { /* App state is updated. */ }
+      setReminderStatus(cloudSyncFailed ? 'Daily reminders are set on this phone. Cloud sync is unavailable until Firestore is configured.' : 'Daily prayer reminders are scheduled on this phone for 7:00 AM, 1:00 PM and 9:00 PM.');
     } catch (err) {
       setReminderStatus(err instanceof Error ? err.message : 'Prayer reminders could not be enabled. Please try again.');
-      try { setReminderGuidance(await notifications.getEnableGuidance()); } catch { /* Keep the error visible. */ }
+      setReminderGuidance({ kind: 'permission', title: 'Allow notifications', message: 'Enable notification permission for Holy Bible KJV in Android settings.', steps: ['Tap Continue and allow notifications.', 'If blocked, open Android Settings → Apps → Holy Bible KJV → Notifications.', 'Return to the app and try again.'] });
     } finally { setReminderBusy(false); }
   };
 
   const saveEnabledPrayerReminder = async () => {
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    if (!Object.values(prayerSchedule).some(period => period.enabled) && !personalPrayerReminder.enabled) {
-      setReminderStatus('Turn on at least one prayer reminder before saving.');
-      return;
-    }
-    await api.post('/api/prayer-reminder', { schedule: prayerSchedule, personalPrayerReminder, timezone, prayerRequest: prayerRequest.trim() });
-    try { localStorage.setItem('kjv-prayer-schedule', JSON.stringify(prayerSchedule)); } catch { /* The server remains the saved source for signed-in reminders. */ }
-    setReminderEnabled(true);
-    setReminderGuidance(null);
-    setReminderStatus('Your automatic morning, afternoon and night prayer notifications are saved. The app manages the schedule for you.');
+    const data = buildPrayerReminderData();
+    if (!Object.values(prayerSchedule).some(period => period.enabled) && !personalPrayerReminder.enabled) { setReminderStatus('Turn on at least one prayer reminder before saving.'); return; }
+    await schedulePrayerReminders(data);
+    let cloudSyncFailed = false;
+    if (account) { try { await storePrayerReminder(account.userId, data); } catch { cloudSyncFailed = true; } }
+    try { localStorage.setItem('kjv-prayer-schedule', JSON.stringify(prayerSchedule)); } catch { /* Keep saved state in memory. */ }
+    setReminderEnabled(true); setReminderGuidance(null);
+    setReminderStatus(cloudSyncFailed ? 'Reminders are scheduled on this phone. Firebase cloud sync is not configured yet.' : 'Your prayer reminders have been scheduled on this phone.');
   };
 
   const enablePrayerReminder = async () => {
-    if (!account) {
-      setReminderStatus('Please sign in to enable prayer-time notifications.');
-      openNamePrompt('signin');
-      return;
-    }
-    if (!navigator.onLine) {
-      setReminderStatus('Connect to the internet to enable or update your prayer reminder.');
-      return;
-    }
-    setReminderBusy(true);
-    setReminderStatus('');
+
+    setReminderBusy(true); setReminderStatus('');
     try {
-      const environment = await notifications.getEnvironment();
-      const guidance = await notifications.getEnableGuidance();
-      if (!environment.isSupported || guidance.kind === 'unsupported') {
-        setReminderGuidance(guidance);
-        setReminderStatus('Notifications are not supported in this browser or app mode. Try opening Holy Bible KJV in Chrome or installing it on your phone.');
-        return;
-      }
-      if (environment.permission === 'denied' || guidance.kind === 'permission_denied') {
-        setReminderGuidance(guidance);
-        setReminderStatus('Notifications are blocked for Holy Bible KJV. Follow the steps below to allow them, then try again.');
-        return;
-      }
-      if (environment.permission === 'default') {
-        setReminderGuidance({
-          kind: 'permission_prompt',
-          title: 'Allow prayer reminders?',
-          message: 'Holy Bible KJV would like to send a gentle notification at your chosen prayer time. Android will ask you to allow notifications next.',
-          steps: ['Tap Continue below.', 'When your phone asks, choose Allow.', 'Return here and your daily prayer reminder will be saved.']
-        });
-        return;
-      }
-      await notifications.subscribe({ showUi: false });
+      const permission = await checkLocalNotificationPermission();
+      if (permission.permission === 'denied') throw new Error('Notifications are blocked for Holy Bible KJV. Enable them in Android settings, then try again.');
+      if (permission.permission === 'unsupported') throw new Error('Daily scheduled notifications are supported in the installed Android app, not browser preview.');
       await saveEnabledPrayerReminder();
     } catch (err) {
       setReminderStatus(err instanceof Error ? err.message : 'Could not check notification permission. Please try again.');
-    } finally {
-      setReminderBusy(false);
-    }
+      setReminderGuidance({ kind: 'permission', title: 'Allow prayer notifications', message: 'Holy Bible KJV needs notification permission to schedule reminders.', steps: ['Continue to allow notifications when Android asks.', 'If you denied it earlier, open Android Settings → Apps → Holy Bible KJV → Notifications.'] });
+    } finally { setReminderBusy(false); }
   };
 
   const confirmPrayerNotificationPermission = async () => {
-    if (!account || !navigator.onLine) {
-      setReminderStatus('Please sign in and connect to the internet before enabling your prayer reminder.');
-      return;
-    }
-    setReminderBusy(true);
-    setReminderStatus('');
-    try {
-      const environment = await notifications.getEnvironment();
-      if (!environment.isSupported) {
-        const guidance = await notifications.getEnableGuidance();
-        setReminderGuidance(guidance);
-        setReminderStatus(guidance.message);
-        return;
-      }
-      if (environment.permission === 'denied') {
-        const guidance = await notifications.getEnableGuidance();
-        setReminderGuidance(guidance);
-        setReminderStatus('Notifications are still blocked. Enable them in your phone or browser settings, then tap Try again.');
-        return;
-      }
-      if (environment.permission === 'default') {
-        await notifications.subscribe({ showUi: false });
-      } else {
-        await notifications.subscribe({ showUi: false });
-      }
-      const confirmed = await notifications.getEnvironment();
-      if (confirmed.permission !== 'granted') {
-        const guidance = await notifications.getEnableGuidance();
-        setReminderGuidance(guidance);
-        setReminderStatus('Permission has not been granted yet. Follow the instructions and try again.');
-        return;
-      }
-      await saveEnabledPrayerReminder();
-    } catch (err) {
-      setReminderStatus(err instanceof Error ? err.message : 'Permission was not completed. Please try again.');
-      try {
-        const guidance = await notifications.getEnableGuidance();
-        setReminderGuidance(guidance);
-      } catch { /* Keep the actionable error message visible. */ }
-    } finally {
-      setReminderBusy(false);
-    }
+
+    setReminderBusy(true); setReminderStatus('');
+    try { await saveEnabledPrayerReminder(); }
+    catch (err) { setReminderStatus(err instanceof Error ? err.message : 'Permission was not completed. Please try again.'); }
+    finally { setReminderBusy(false); }
   };
 
   const saveBibleNote = () => {
@@ -648,13 +551,14 @@ function App() {
       if (selectedScripture) localStorage.setItem('kjv-prayer-scripture', JSON.stringify(selectedScripture));
       else localStorage.removeItem('kjv-prayer-scripture');
       setPrayerRequestSaved(true);
-      if (account && reminderEnabled && navigator.onLine) {
+      if (reminderEnabled) {
         try {
-          const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-          await api.post('/api/prayer-reminder', { schedule: prayerSchedule, personalPrayerReminder, timezone, prayerRequest: prayerRequest.trim() });
-          setReminderStatus('Your prayer is saved and your morning, afternoon and night reminder schedule has been updated.');
+          const data = buildPrayerReminderData();
+          await schedulePrayerReminders(data);
+          if (account) { try { await storePrayerReminder(account.userId, data); } catch { /* Device reminder remains saved; cloud sync may be unavailable. */ } }
+          setReminderStatus('Your prayer is saved and your phone reminders have been updated.');
         } catch {
-          setReminderStatus('Your prayer is saved on this device, but the scheduled reminder could not be updated. Tap Update prayer notification when you are online.');
+          setReminderStatus('Your prayer is saved on this device, but notifications could not be rescheduled. Check notification permission.');
         }
       }
     } catch {
@@ -836,8 +740,7 @@ function App() {
     if (!navigator.onLine) { setVoiceNotice('The AI companion needs an internet connection. You can still read downloaded Bible chapters aloud offline.'); return; }
     setVoiceQuestion(question); setVoiceBusy(true); setVoiceNotice(''); setVoiceAnswer('');
     try {
-      const result = await api.post('/api/voice-companion', { question, currentReference: book + ' ' + chapter });
-      const answer = typeof result.data?.answer === 'string' ? result.data.answer : 'I could not prepare an answer just now. Please try again.';
+      const answer = await askBibleCompanion(question, book + ' ' + chapter);
       setVoiceAnswer(answer);
       if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(answer); utterance.lang = 'en-GB'; utterance.rate = 0.92; window.speechSynthesis.speak(utterance); }
     } catch { setVoiceNotice('I could not reach the Bible companion. Please check your connection and try again.'); }
@@ -915,7 +818,7 @@ function App() {
     <div className="splash-screen" role="status" aria-live="polite">
       <div className="splash-glow" />
       <div className="splash-content">
-        <div className="splash-emblem"><img src="/resources/holy-bible-kjv-icon.png" alt="Holy Bible KJV" /></div>
+        <div className="splash-emblem"><img src="/holy-bible-kjv-icon.png" alt="Holy Bible KJV" /></div>
         <span className="eyebrow light">THE HOLY SCRIPTURES</span>
         <h1>Holy Bible<br /><em>King James Version</em></h1>
         <p>Restoring your place in Scripture…</p>
@@ -925,21 +828,49 @@ function App() {
     </div>
   );
 
+  if (firstWelcome) return (
+    <div className="first-welcome">
+      <img className="first-welcome-art" src="/welcome-jesus-child.jpg" alt="Jesus walking with a child toward warm light" />
+      <div className="first-welcome-shade" />
+      <button className="first-welcome-skip" onClick={() => { try { localStorage.setItem('kjv-welcome-shown','yes'); } catch {} setFirstWelcome(false); openNamePrompt('guest'); }}>Skip</button>
+      <div className="first-welcome-content">
+        <span className="eyebrow light">A JOURNEY OF FAITH</span>
+        <h1>Walk With Christ</h1>
+        <p>Every day is an opportunity to draw closer to God. Discover His Word, strengthen your faith, and let His presence guide you.</p>
+        <button className="first-welcome-continue" onClick={() => { try { localStorage.setItem('kjv-welcome-shown','yes'); } catch {} setFirstWelcome(false); openNamePrompt('signin'); }}>Continue <ChevronRight size={18} /></button>
+      </div>
+    </div>
+  );
+
   if (showSplash) return (
     <div className="splash-screen">
       <div className="splash-glow" />
       <div className="splash-content">
-        <div className="splash-emblem"><img src="/resources/holy-bible-kjv-icon.png" alt="Holy Bible KJV" /></div>
+        <div className="splash-emblem"><img src="/holy-bible-kjv-icon.png" alt="Holy Bible KJV" /></div>
         <span className="eyebrow light">THE HOLY SCRIPTURES</span>
         <h1>Holy Bible<br /><em>King James Version</em></h1>
         <p>Read God’s Word. Find wisdom and hope.<br />Grow in faith every day.</p>
         <div className="splash-version">KING JAMES VERSION · KJV</div>
+        {(() => {
+          const welcomeVerses = [
+            { text: 'The LORD is my shepherd; I shall not want.', ref: 'Psalm 23:1' },
+            { text: 'Thy word is a lamp unto my feet, and a light unto my path.', ref: 'Psalm 119:105' },
+            { text: 'I can do all things through Christ which strengtheneth me.', ref: 'Philippians 4:13' },
+            { text: 'Be still, and know that I am God.', ref: 'Psalm 46:10' },
+            { text: 'Trust in the LORD with all thine heart.', ref: 'Proverbs 3:5' },
+            { text: 'The LORD is good; his mercy is everlasting.', ref: 'Psalm 100:5' },
+            { text: 'Fear thou not; for I am with thee.', ref: 'Isaiah 41:10' }
+          ];
+          const dayIndex = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000) % welcomeVerses.length;
+          const verse = welcomeVerses[dayIndex];
+          return <p className="splash-verse">“{verse.text}” <span>— {verse.ref}</span></p>;
+        })()}
         <button className="splash-start" onClick={() => openNamePrompt('guest')}>Open Bible <ChevronRight size={18} /></button>
         <button className="splash-account" onClick={() => openNamePrompt('signin')}>Sign up / Log in</button>
         {authMessage && <small className="splash-auth-message">{authMessage}</small>}
         <small>God’s Word for every generation.</small>
       </div>
-      {showNotificationSetup && !showSplash && <div className="overlay prayer-overlay" onClick={() => { setShowNotificationSetup(false); try { localStorage.setItem('kjv-prayer-reminders-onboarded', 'dismissed'); } catch { /* Optional preference. */ } }}><section className="modal prayer-modal prayer-experience" role="dialog" aria-modal="true" aria-labelledby="prayer-reminder-welcome" onClick={e => e.stopPropagation()}><button className="close prayer-close" onClick={() => { setShowNotificationSetup(false); try { localStorage.setItem('kjv-prayer-reminders-onboarded', 'dismissed'); } catch { /* Optional preference. */ } }} aria-label="Close reminder setup"><X /></button><div className="prayer-mark">🔔</div><span className="eyebrow prayer-eyebrow">A GENTLE DAILY REMINDER</span><h2 id="prayer-reminder-welcome">Stay close to prayer</h2><p className="prayer-intro">Would you like Holy Bible KJV to send fresh, Scripture-based prayers in the morning, afternoon and evening? We’ll vary the prayers so you are not seeing the same one every day.</p>{!account && <p className="prayer-intro">Sign in once to connect reminders to your account. You can still read the Bible and pray as a guest.</p>}{reminderStatus && <p className="prayer-reminder-status" role="status">{reminderStatus}</p>}{reminderGuidance && <div className="prayer-permission-guide"><b>{reminderGuidance.title}</b><p>{reminderGuidance.message}</p>{reminderGuidance.steps.length > 0 && <ol>{reminderGuidance.steps.map((step,index) => <li key={index}>{step}</li>)}</ol>}</div>}<button className="prayer-amen" onClick={() => void activateAutomaticPrayerReminders()} disabled={reminderBusy}>{reminderBusy ? 'Setting up…' : account ? 'Allow prayer reminders' : 'Sign in to set up reminders'} <Heart size={16} /></button><button className="prayer-permission-dismiss" onClick={() => { setShowNotificationSetup(false); try { localStorage.setItem('kjv-prayer-reminders-onboarded', 'dismissed'); } catch { /* Optional preference. */ } }}>Not now</button></section></div>}
+      {showNotificationSetup && !showSplash && <div className="overlay prayer-overlay" onClick={() => { setShowNotificationSetup(false); try { localStorage.setItem('kjv-prayer-reminders-onboarded', 'dismissed'); } catch { /* Optional preference. */ } }}><section className="modal prayer-modal prayer-experience" role="dialog" aria-modal="true" aria-labelledby="prayer-reminder-welcome" onClick={e => e.stopPropagation()}><button className="close prayer-close" onClick={() => { setShowNotificationSetup(false); try { localStorage.setItem('kjv-prayer-reminders-onboarded', 'dismissed'); } catch { /* Optional preference. */ } }} aria-label="Close reminder setup"><X /></button><div className="prayer-mark">🔔</div><span className="eyebrow prayer-eyebrow">A GENTLE DAILY REMINDER</span><h2 id="prayer-reminder-welcome">Stay close to prayer</h2><p className="prayer-intro">Would you like gentle reminders to pause for prayer in the morning, afternoon and evening?</p>{!account && <p className="prayer-intro">You can set reminders as a guest. Sign in only if you want to sync your prayer settings across devices.</p>}{reminderStatus && <p className="prayer-reminder-status" role="status">{reminderStatus}</p>}{reminderGuidance && <div className="prayer-permission-guide"><b>{reminderGuidance.title}</b><p>{reminderGuidance.message}</p>{reminderGuidance.steps.length > 0 && <ol>{reminderGuidance.steps.map((step,index) => <li key={index}>{step}</li>)}</ol>}</div>}<button className="prayer-amen" onClick={() => void activateAutomaticPrayerReminders()} disabled={reminderBusy}>{reminderBusy ? 'Setting up…' : 'Set up daily prayer reminders'} <Heart size={16} /></button><button className="prayer-permission-dismiss" onClick={() => { setShowNotificationSetup(false); try { localStorage.setItem('kjv-prayer-reminders-onboarded', 'dismissed'); } catch { /* Optional preference. */ } }}>Not now</button></section></div>}
       {showOpeningPrayerPrompt && !showSplash && <div className="overlay prayer-overlay" onClick={() => setShowOpeningPrayerPrompt(false)}><section className="modal prayer-modal prayer-experience" role="dialog" aria-modal="true" aria-labelledby="opening-prayer-title" onClick={e => e.stopPropagation()}><button className="close prayer-close" onClick={() => setShowOpeningPrayerPrompt(false)} aria-label="Close prayer invitation"><X /></button><div className="prayer-mark">🙏</div><span className="eyebrow prayer-eyebrow">A MOMENT WITH GOD</span><h2 id="opening-prayer-title">Would you like to pray?</h2><p className="prayer-intro">Take a quiet moment to bring your heart before God. A fresh prayer is ready whenever you are.</p><button className="prayer-amen" onClick={() => { setSelectedPrayer(Math.floor(Math.random() * prayerOptions.length)); setPrayerCompleted(false); setPrayer(true); setShowOpeningPrayerPrompt(false); }}>Pray now <Heart size={16} /></button><button className="prayer-permission-dismiss" onClick={() => setShowOpeningPrayerPrompt(false)}>Not now</button></section></div>}
       {namePromptOpen && <div className="overlay" onClick={() => setNamePromptOpen(false)}><div className="modal name-modal" onClick={e => e.stopPropagation()}><button className="close" onClick={() => setNamePromptOpen(false)} aria-label="Close name form"><X /></button><div className="name-modal-mark">✦</div><span className="eyebrow">A PERSONAL WELCOME</span><h2>What should we call you?</h2><p>Your name will appear on your prayer completion message. You can use Holy Bible KJV as a guest or sign in to your account.</p><label className="name-field-label" htmlFor="profile-name">YOUR FIRST NAME</label><input id="profile-name" className="name-field" autoComplete="given-name" maxLength={40} placeholder="Enter your first name" value={nameDraft} onChange={e => setNameDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && nameDraft.trim()) void continueWithName(); }} /><button className="name-continue-button" disabled={!nameDraft.trim()} onClick={() => void continueWithName()}>{namePromptMode === 'signin' ? 'Continue to sign in' : 'Continue as guest'} <ChevronRight size={17} /></button>{namePromptMode === 'guest' && <button className="name-skip-button" onClick={continueAsGuestWithoutName}>Continue without a name</button>}</div></div>}
       <div className="splash-stars">✦　·　✧　·　✦</div>
@@ -1179,7 +1110,7 @@ function App() {
         <button className="prayer-settings-link" onClick={() => { setPrayer(false); setTab('Prayer'); }}><Settings size={15} /> Open prayer requests</button>
       </div></div>}
 
-      {showNotificationSetup && !showSplash && <div className="overlay prayer-overlay" onClick={() => { setShowNotificationSetup(false); try { localStorage.setItem('kjv-prayer-reminders-onboarded', 'dismissed'); } catch { /* Optional preference. */ } }}><section className="modal prayer-modal prayer-experience" role="dialog" aria-modal="true" aria-labelledby="prayer-reminder-welcome" onClick={e => e.stopPropagation()}><button className="close prayer-close" onClick={() => { setShowNotificationSetup(false); try { localStorage.setItem('kjv-prayer-reminders-onboarded', 'dismissed'); } catch { /* Optional preference. */ } }} aria-label="Close reminder setup"><X /></button><div className="prayer-mark">🔔</div><span className="eyebrow prayer-eyebrow">A GENTLE DAILY REMINDER</span><h2 id="prayer-reminder-welcome">Stay close to prayer</h2><p className="prayer-intro">Would you like Holy Bible KJV to send fresh, Scripture-based prayers in the morning, afternoon and evening? We’ll vary the prayers so you are not seeing the same one every day.</p>{!account && <p className="prayer-intro">Sign in once to connect reminders to your account. You can still read the Bible and pray as a guest.</p>}{reminderStatus && <p className="prayer-reminder-status" role="status">{reminderStatus}</p>}{reminderGuidance && <div className="prayer-permission-guide"><b>{reminderGuidance.title}</b><p>{reminderGuidance.message}</p>{reminderGuidance.steps.length > 0 && <ol>{reminderGuidance.steps.map((step,index) => <li key={index}>{step}</li>)}</ol>}</div>}<button className="prayer-amen" onClick={() => void activateAutomaticPrayerReminders()} disabled={reminderBusy}>{reminderBusy ? 'Setting up…' : account ? 'Allow prayer reminders' : 'Sign in to set up reminders'} <Heart size={16} /></button><button className="prayer-permission-dismiss" onClick={() => { setShowNotificationSetup(false); try { localStorage.setItem('kjv-prayer-reminders-onboarded', 'dismissed'); } catch { /* Optional preference. */ } }}>Not now</button></section></div>}
+      {showNotificationSetup && !showSplash && <div className="overlay prayer-overlay" onClick={() => { setShowNotificationSetup(false); try { localStorage.setItem('kjv-prayer-reminders-onboarded', 'dismissed'); } catch { /* Optional preference. */ } }}><section className="modal prayer-modal prayer-experience" role="dialog" aria-modal="true" aria-labelledby="prayer-reminder-welcome" onClick={e => e.stopPropagation()}><button className="close prayer-close" onClick={() => { setShowNotificationSetup(false); try { localStorage.setItem('kjv-prayer-reminders-onboarded', 'dismissed'); } catch { /* Optional preference. */ } }} aria-label="Close reminder setup"><X /></button><div className="prayer-mark">🔔</div><span className="eyebrow prayer-eyebrow">A GENTLE DAILY REMINDER</span><h2 id="prayer-reminder-welcome">Stay close to prayer</h2><p className="prayer-intro">Would you like gentle reminders to pause for prayer in the morning, afternoon and evening?</p>{!account && <p className="prayer-intro">You can set reminders as a guest. Sign in only if you want to sync your prayer settings across devices.</p>}{reminderStatus && <p className="prayer-reminder-status" role="status">{reminderStatus}</p>}{reminderGuidance && <div className="prayer-permission-guide"><b>{reminderGuidance.title}</b><p>{reminderGuidance.message}</p>{reminderGuidance.steps.length > 0 && <ol>{reminderGuidance.steps.map((step,index) => <li key={index}>{step}</li>)}</ol>}</div>}<button className="prayer-amen" onClick={() => void activateAutomaticPrayerReminders()} disabled={reminderBusy}>{reminderBusy ? 'Setting up…' : 'Set up daily prayer reminders'} <Heart size={16} /></button><button className="prayer-permission-dismiss" onClick={() => { setShowNotificationSetup(false); try { localStorage.setItem('kjv-prayer-reminders-onboarded', 'dismissed'); } catch { /* Optional preference. */ } }}>Not now</button></section></div>}
       {showOpeningPrayerPrompt && !showSplash && <div className="overlay prayer-overlay" onClick={() => setShowOpeningPrayerPrompt(false)}><section className="modal prayer-modal prayer-experience" role="dialog" aria-modal="true" aria-labelledby="opening-prayer-title" onClick={e => e.stopPropagation()}><button className="close prayer-close" onClick={() => setShowOpeningPrayerPrompt(false)} aria-label="Close prayer invitation"><X /></button><div className="prayer-mark">🙏</div><span className="eyebrow prayer-eyebrow">A MOMENT WITH GOD</span><h2 id="opening-prayer-title">Would you like to pray?</h2><p className="prayer-intro">Take a quiet moment to bring your heart before God. A fresh prayer is ready whenever you are.</p><button className="prayer-amen" onClick={() => { setSelectedPrayer(Math.floor(Math.random() * prayerOptions.length)); setPrayerCompleted(false); setPrayer(true); setShowOpeningPrayerPrompt(false); }}>Pray now <Heart size={16} /></button><button className="prayer-permission-dismiss" onClick={() => setShowOpeningPrayerPrompt(false)}>Not now</button></section></div>}
       {namePromptOpen && <div className="overlay" onClick={() => setNamePromptOpen(false)}><div className="modal name-modal" onClick={e => e.stopPropagation()}><button className="close" onClick={() => setNamePromptOpen(false)} aria-label="Close name form"><X /></button><div className="name-modal-mark">✦</div><span className="eyebrow">A PERSONAL WELCOME</span><h2>What should we call you?</h2><p>Your name will appear on your prayer completion message. You can use Holy Bible KJV as a guest or sign in to your account.</p><label className="name-field-label" htmlFor="profile-name">YOUR FIRST NAME</label><input id="profile-name" className="name-field" autoComplete="given-name" maxLength={40} placeholder="Enter your first name" value={nameDraft} onChange={e => setNameDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && nameDraft.trim()) void continueWithName(); }} /><button className="name-continue-button" disabled={!nameDraft.trim()} onClick={() => void continueWithName()}>{namePromptMode === 'signin' ? 'Continue to sign in' : 'Continue as guest'} <ChevronRight size={17} /></button>{namePromptMode === 'guest' && <button className="name-skip-button" onClick={continueAsGuestWithoutName}>Continue without a name</button>}</div></div>}
 
