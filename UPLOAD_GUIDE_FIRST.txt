@@ -1,0 +1,21 @@
+HOLY BIBLE KJV — CLEAN PROJECT PACKAGE
+
+This ZIP contains ONE copy of the project. There is no extra project folder inside it.
+
+UPLOAD TO GITHUB
+1. Download this ZIP and extract it.
+2. Open the extracted folder. You should see package.json, index.html, src, public, and .github directly inside it.
+3. Upload the CONTENTS of this folder to the ROOT of your GitHub repository. Do not upload the ZIP itself and do not create another nested project folder.
+4. Keep existing repository files until you have checked that your personal changes are preserved.
+
+IMPORTANT CHECKS
+- Main app entry: src/main.tsx
+- Main app screen: src/App.tsx
+- Firebase services: src/firebaseServices.ts
+- Kids Zone: src/KidsZone.tsx
+- KJV Bible data: public/kjv-bible.json.gz
+- Welcome/prayer artwork: public/welcome-jesus-child.jpg
+- Android workflow: .github/workflows/android.yml
+- Firebase configuration file: google-services.json
+
+This package has been checked for ZIP integrity and required project files. An Android APK build has NOT been run or verified here.

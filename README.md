@@ -32,9 +32,3 @@ GitHub Actions builds the web assets, syncs Capacitor Android plugins, assembles
 - Added a Psalm 23:1 verse to the splash screen.
 
 Build verification is pending: dependency installation timed out in the current environment, so a Vite/TypeScript build has not yet been confirmed.
-
-## Repository layout and Android build
-
-This ZIP contains one project only. After extracting it, open `Holy_Bible_KJV_Android_Ready` and upload the files and folders directly inside it to the root of your new GitHub repository. Do not upload the ZIP as a single file, and do not upload a second nested copy of the project.
-
-The source app lives in `src/`; web assets and the offline KJV data live in `public/`. There is intentionally no checked-in `android/` directory in this source package: the GitHub Actions workflow creates the Capacitor Android platform during the build, then builds and uploads the debug APK as an Actions artifact.
